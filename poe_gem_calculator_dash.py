@@ -490,6 +490,7 @@ calculator = SimpleCalculator(league=None)
 # Initialize the Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.title = "PoE Gem Profit Calculator"
+server = app.server
 
 # Allow callbacks to components created by other callbacks
 app.config.suppress_callback_exceptions = True
