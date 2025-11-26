@@ -963,7 +963,5 @@ def show_trade_results(active_cell, clear_clicks, currency_mode, table_data):
     return trade_card
 
 if __name__ == '__main__':
-    print("Starting Dash app...")
-    print(f"Loaded {len(profits_data)} gems")
-    print(f"Access at: http://127.0.0.1:8050")
-    app.run(port=8050)  # No debug parameter
+    port = int(os.environ.get('PORT', 10000))  # ← Get PORT from environment
+    app.run_server(host='0.0.0.0', port=port, debug=False)
