@@ -17,6 +17,7 @@ import pandas as pd
 from datetime import datetime
 import threading
 import time
+import os
 
 class SimplePoeAPI:
     """Simplified API client for Dash version"""
@@ -545,13 +546,13 @@ current_analysis_gem = None  # Track which gem is currently displayed in footer
 # Store last refresh timestamp
 last_refresh_time = None
 
-# Start loading in background thread
+# Initialize profit data (will be loaded after app starts)
 profits_data = []
-loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
-loading_thread.start()
+loading_thread = None
 
 # Initialize Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
+app.title = "PoE Gem Profit Calculator"
 server = app.server
 
 # Currency display mode state
@@ -615,6 +616,9 @@ def create_columns(include_corruption=False):
 
 # Layout
 app.layout = dbc.Container([
+    # One-time startup trigger to begin loading gems after app is ready
+    dcc.Interval(id='startup-trigger', interval=1000, n_intervals=0, max_intervals=1),
+    
     # Hidden interval component for updating progress
     dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
     
@@ -1046,6 +1050,20 @@ def load_all_gems(n_clicks):
 
 
 @app.callback(
+    Output('startup-trigger', 'disabled'),
+    Input('startup-trigger', 'n_intervals')
+)
+def start_loading(n):
+    """Start loading gem prices after app is ready (for Render deployment)"""
+    global loading_thread
+    if n > 0 and loading_thread is None:
+        print("🚀 App is ready - starting gem price loading...")
+        loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
+        loading_thread.start()
+    return True  # Disable the interval after first trigger
+
+
+@app.callback(
     Output('currency-icon', 'src'),
     Output('currency-text', 'children'),
     Input('currency-toggle', 'n_clicks'),
@@ -1393,5 +1411,7 @@ app.clientside_callback(
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))  # ← Get PORT from environment
+    port = int(os.environ.get('PORT', 10000))  # Render uses port 10000 by default
+    print(f"Starting PoE Gem Profit Calculator...")
+    print(f"Listening on port {port}")
     app.run_server(host='0.0.0.0', port=port, debug=False)
