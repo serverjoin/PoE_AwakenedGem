@@ -1002,6 +1002,8 @@ def update_progress(n):
     Output('load-all-button', 'children'),
     Output('load-all-button', 'disabled'),
     Output('gems-shown-status', 'children'),
+    Output('gem-table', 'data', allow_duplicate=True),
+    Output('gem-table', 'columns', allow_duplicate=True),
     Input('load-all-button', 'n_clicks'),
     prevent_initial_call=True
 )
@@ -1014,7 +1016,7 @@ def load_all_gems(n_clicks):
             html.Img(src="https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9TdXBwb3J0L1N1cHBvcnRQbHVzL011bHRpcGxlQXR0YWNrc1BsdXMiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/c32ddc2121/MultipleAttacksPlus.png",
                     height="20px", className="me-1"),
             "Load All Gems"
-        ], False, f"Top {len(profits_data)} gems"
+        ], False, f"Top {len(profits_data)} gems", dash.no_update, dash.no_update
     
     # Check if we currently have poe.ninja gems loaded
     has_ninja_gems = any(not g.get('from_trade', True) for g in profits_data)
@@ -1028,7 +1030,7 @@ def load_all_gems(n_clicks):
             html.Img(src="https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9TdXBwb3J0L1N1cHBvcnRQbHVzL011bHRpcGxlQXR0YWNrc1BsdXMiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/c32ddc2121/MultipleAttacksPlus.png",
                     height="20px", className="me-1"),
             "Load All Gems"
-        ], False, f"Top {len(profits_data)} gems"
+        ], False, f"Top {len(profits_data)} gems", create_table_data(False), create_columns(False)
     else:
         # Show all gems - add poe.ninja gems
         loaded_gems = {gem['name'] for gem in profits_data}
@@ -1067,7 +1069,7 @@ def load_all_gems(n_clicks):
             html.Img(src="https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9TdXBwb3J0L1N1cHBvcnRQbHVzL011bHRpcGxlQXR0YWNrc1BsdXMiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/c32ddc2121/MultipleAttacksPlus.png",
                     height="20px", className="me-1"),
             "Hide Extra Gems"
-        ], False, f"All {len(profits_data)} gems"
+        ], False, f"All {len(profits_data)} gems", create_table_data(False), create_columns(False)
 
 
 
@@ -1116,6 +1118,7 @@ def update_auto_refresh_settings(toggle_value, interval_minutes):
     Output('gem-table', 'columns'),
     Output('last-update', 'children'),
     Output('gems-shown-status', 'children', allow_duplicate=True),
+    Output('progress-interval', 'disabled', allow_duplicate=True),
     Input('refresh-button', 'n_clicks'),
     Input('auto-refresh-interval', 'n_intervals'),
     Input('progress-interval', 'n_intervals'),
@@ -1147,11 +1150,11 @@ def update_table_and_analysis(n_clicks, auto_refresh_intervals, progress_interva
         loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
         loading_thread.start()
         print("Started new loading thread")
-        return [], create_columns(False), "Last updated: Refreshing...", "Refreshing..."
+        return [], create_columns(False), "Last updated: Refreshing...", "Refreshing...", False  # Re-enable progress interval
     
     # Wait until data is loaded
     if not loading_progress['complete'] or not profits_data:
-        return [], create_columns(False), "Last updated: Loading...", "Loading..."
+        return [], create_columns(False), "Last updated: Loading...", "Loading...", dash.no_update
     
     # Only update timestamp on actual data refresh (not currency toggle or progress interval after loading)
     if triggered_id not in ['currency-toggle', 'progress-interval']:
@@ -1164,7 +1167,7 @@ def update_table_and_analysis(n_clicks, auto_refresh_intervals, progress_interva
     # Update status
     gems_status = f"Top {len(profits_data)} gems" if len(profits_data) <= 5 else f"All {len(profits_data)} gems"
     
-    return create_table_data(False), create_columns(False), timestamp, gems_status
+    return create_table_data(False), create_columns(False), timestamp, gems_status, dash.no_update
 
 
 @app.callback(
