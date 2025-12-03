@@ -625,9 +625,6 @@ def create_columns(include_corruption=False):
 
 # Layout
 app.layout = dbc.Container([
-    # Startup trigger for gunicorn deployment
-    dcc.Interval(id='startup-trigger', interval=1000, n_intervals=0, max_intervals=1),
-    
     # Hidden interval component for updating progress
     dcc.Interval(id='progress-interval', interval=500, n_intervals=0, disabled=False),
     
@@ -970,6 +967,19 @@ app.layout = dbc.Container([
 )
 def update_progress(n):
     """Update loading progress bar"""
+    global loading_thread
+    
+    # Start loading on first interval if running under gunicorn and not started yet
+    if n == 1 and loading_thread is None:
+        print("🚀 Progress interval triggered - starting gem price loading...")
+        loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
+        loading_thread.start()
+    
+    # Safety: disable after 5 minutes (600 intervals at 500ms each)
+    if n > 600:
+        print("⚠️ Progress interval timeout - disabling after 5 minutes")
+        return 100, "100%", "Timeout", False, True
+    
     if loading_progress['total'] == 0:
         return 0, "0%", "Initializing...", True, False
     
@@ -1060,20 +1070,6 @@ def load_all_gems(n_clicks):
         ], False, f"All {len(profits_data)} gems"
 
 
-
-
-@app.callback(
-    Output('startup-trigger', 'disabled'),
-    Input('startup-trigger', 'n_intervals')
-)
-def start_loading_on_first_visit(n):
-    """Start loading gem prices on first page visit (for gunicorn/Render)"""
-    global loading_thread
-    if n > 0 and loading_thread is None:
-        print("🚀 First page visit - starting gem price loading...")
-        loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
-        loading_thread.start()
-    return True
 
 
 @app.callback(
