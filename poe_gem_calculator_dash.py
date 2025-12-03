@@ -546,10 +546,18 @@ current_analysis_gem = None  # Track which gem is currently displayed in footer
 # Store last refresh timestamp
 last_refresh_time = None
 
-# Initialize profit data and start loading in background thread
+# Initialize profit data
 profits_data = []
-loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
-loading_thread.start()
+
+# Only start loading thread if not running under gunicorn
+# Gunicorn sets SERVER_SOFTWARE env variable
+if not os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn'):
+    print("Starting initial gem price loading...")
+    loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
+    loading_thread.start()
+else:
+    print("Running under gunicorn - skipping initial load. Will load on first page visit.")
+    loading_thread = None
 
 # Initialize Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
@@ -617,8 +625,11 @@ def create_columns(include_corruption=False):
 
 # Layout
 app.layout = dbc.Container([
+    # Startup trigger for gunicorn deployment
+    dcc.Interval(id='startup-trigger', interval=1000, n_intervals=0, max_intervals=1),
+    
     # Hidden interval component for updating progress
-    dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
+    dcc.Interval(id='progress-interval', interval=500, n_intervals=0, disabled=False),
     
     # Auto-refresh interval component (default 20 minutes = 1,200,000 ms)
     dcc.Interval(id='auto-refresh-interval', interval=1200000, n_intervals=0, disabled=False),
@@ -954,12 +965,13 @@ app.layout = dbc.Container([
     Output('loading-progress', 'label'),
     Output('loading-status', 'children'),
     Output('loading-modal', 'is_open'),
+    Output('progress-interval', 'disabled'),
     Input('progress-interval', 'n_intervals')
 )
 def update_progress(n):
     """Update loading progress bar"""
     if loading_progress['total'] == 0:
-        return 0, "0%", "Initializing...", True
+        return 0, "0%", "Initializing...", True, False
     
     percent = (loading_progress['current'] / loading_progress['total']) * 100
     label = f"{loading_progress['current']}/{loading_progress['total']} ({percent:.0f}%)"
@@ -969,10 +981,11 @@ def update_progress(n):
         html.P(f"Gem {loading_progress['current']} of {loading_progress['total']}", className="text-muted mb-0")
     ])
     
-    # Close modal when complete
+    # Close modal when complete and disable interval to stop polling
     is_open = not loading_progress['complete']
+    interval_disabled = loading_progress['complete']  # Disable when complete
     
-    return percent, label, status, is_open
+    return percent, label, status, is_open, interval_disabled
 
 
 @app.callback(
@@ -1047,6 +1060,20 @@ def load_all_gems(n_clicks):
         ], False, f"All {len(profits_data)} gems"
 
 
+
+
+@app.callback(
+    Output('startup-trigger', 'disabled'),
+    Input('startup-trigger', 'n_intervals')
+)
+def start_loading_on_first_visit(n):
+    """Start loading gem prices on first page visit (for gunicorn/Render)"""
+    global loading_thread
+    if n > 0 and loading_thread is None:
+        print("🚀 First page visit - starting gem price loading...")
+        loading_thread = threading.Thread(target=load_gem_prices, daemon=True)
+        loading_thread.start()
+    return True
 
 
 @app.callback(
